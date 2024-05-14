@@ -9,22 +9,43 @@ import {
   Revenue,
 } from './definitions';
 import { formatCurrency } from './utils';
+import { unstable_noStore as noStore } from 'next/cache';
 
+// This patterns causes waterfalls. For example, we need to wait for fetchRevenue() to execute before fetchLatestInvoices() can start running, and so on.
+// To prevent waterfalls we can use the aproach: 
+// * initiate all data requests at the same time - in parallel with Promise.all() or Promise.allSettled()
+// * use Dinamic Rendering...
+// * use Streaming...  a data transfer technique that allows you to break down a route into smaller "chunks" and progressively stream them from the server to the client as they become ready.
+
+// By streaming, you can prevent slow data requests from blocking your whole page. This allows the user to see and interact with parts of the page without waiting for all the data to load before any UI can be shown to the user.
+// Chunks are rendered in parallel, reducing the overall load time
+// There are two ways you implement streaming in Next.js:
+// - At the page level, with the loading.tsx file.
+// - For specific components, with <Suspense>.
+
+// lets see examples of aproach...
+
+// Dinamic aproach
 export async function fetchRevenue() {
-  // Add noStore() here to prevent the response from being cached.
+  // Dinamic example
+  // Add noStore() here to prevent the response from being cached. In static render the data is cached and it doesnt update. 
   // This is equivalent to in fetch(..., {cache: 'no-store'}).
-
+  noStore(); 
+  // unstable_noStore is an experimental API and may change in the future. 
+  // If you prefer to use a stable API in your own projects, you can also use the Segment Config Option export const dynamic = "force-dynamic".
+  
+  // With dynamic rendering, your application is only as fast as your slowest data fetch.
   try {
     // Artificially delay a response for demo purposes.
     // Don't do this in production :)
 
-    // console.log('Fetching revenue data...');
-    // await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log('Fetching revenue data...');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const data = await sql<Revenue>`SELECT * FROM revenue`;
 
-    // console.log('Data fetch completed after 3 seconds.');
-
+    console.log('Data fetch completed after 3 seconds.');
+    
     return data.rows;
   } catch (error) {
     console.error('Database Error:', error);
@@ -32,6 +53,7 @@ export async function fetchRevenue() {
   }
 }
 
+// Static aproach
 export async function fetchLatestInvoices() {
   try {
     const data = await sql<LatestInvoiceRaw>`
@@ -52,6 +74,12 @@ export async function fetchLatestInvoices() {
   }
 }
 
+// Javascript Promise aproach 
+// A common way to avoid waterfalls is to initiate all data requests at the same time - in parallel.
+// In JavaScript, you can use the Promise.all() or Promise.allSettled() functions to initiate all promises at the same time.
+// use Promise.all() if the tasks are dependent on each other, or if you'd like to immediately reject upon any of them rejecting.
+// use Promise.allSettled() when you have multiple asynchronous tasks that are not dependent on one another to complete successfully
+// However, there is one disadvantage of relying only on this JavaScript pattern: what happens if one data request is slower than all the others?
 export async function fetchCardData() {
   try {
     // You can probably combine these into a single SQL query
